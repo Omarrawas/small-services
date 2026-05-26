@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router";
-import { Star, Clock, Shield, Check, ChevronLeft, Send, AlertCircle } from "lucide-react";
+import { Star, Clock, Shield, Check, ChevronLeft, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,20 +9,22 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { trpc } from "@/providers/trpc";
 import { toast } from "sonner";
+import { ChatDialog } from "@/components/chat/ChatDialog";
 
 export default function ServiceDetails() {
   const { slug } = useParams<{ slug: string }>();
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedExtras, setSelectedExtras] = useState<number[]>([]);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   // Queries
   const { data: service, isLoading, error } = trpc.services.bySlug.useQuery({ slug: slug || "" }, { enabled: !!slug });
   const { data: serviceReviews } = trpc.reviews.byService.useQuery({ serviceId: service?.id || 0 }, { enabled: !!service?.id });
-  const { data: seller } = trpc.sellers.byId.useQuery({ id: service?.sellerId || 0 }, { enabled: !!service?.sellerId });
+  const { data: seller } = trpc.sellers.profile.useQuery({ id: service?.sellerId || 0 }, { enabled: !!service?.sellerId });
 
   // Mutations
   const createOrder = trpc.orders.create.useMutation({
-    onSuccess: (data) => {
+    onSuccess: () => {
       toast.success("تم تقديم طلبك بنجاح!");
       // Redirect to order page or dashboard
     },
@@ -79,7 +81,7 @@ export default function ServiceDetails() {
 
   const handleOrder = () => {
     createOrder.mutate({
-      serviceId: service.id,
+      serviceSlug: service.slug,
       extras: selectedExtras.map(idx => extras[idx]),
     });
   };
@@ -88,7 +90,7 @@ export default function ServiceDetails() {
   const avgRating = service.rating || "0";
 
   const ratingBreakdown = [5, 4, 3, 2, 1].map((stars) => {
-    const count = reviews.filter((r) => r.rating === stars).length;
+    const count = reviews.filter((r: { rating: number }) => r.rating === stars).length;
     const pct = reviews.length > 0 ? (count / reviews.length) * 100 : 0;
     return { stars, count, pct };
   });
@@ -238,7 +240,7 @@ export default function ServiceDetails() {
                   <Separator className="mb-10" />
 
                   <div className="space-y-8">
-                    {reviews.length > 0 ? reviews.map((review) => (
+                    {reviews.length > 0 ? reviews.map((review: { id: number; rating: number; comment: string; createdAt: string; reviewerName: string; reviewerAvatar: string | null }) => (
                       <div key={review.id} className="group">
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-4">
@@ -366,9 +368,14 @@ export default function ServiceDetails() {
                   <Button variant="outline" className="flex-1 border-[#0D5D48] text-[#0D5D48] hover:bg-[#E8F5F0] rounded-2xl h-11 text-xs font-bold" asChild>
                     <Link to={`/sellers/${seller?.id}`}>الملف الشخصي</Link>
                   </Button>
-                  <Button variant="outline" className="w-12 h-11 border-gray-200 text-gray-400 hover:text-[#0D5D48] hover:border-[#0D5D48] rounded-2xl p-0">
+                  <Button 
+                    onClick={() => setIsChatOpen(true)}
+                    variant="outline" 
+                    className="w-12 h-11 border-gray-200 text-gray-400 hover:text-[#0D5D48] hover:border-[#0D5D48] rounded-2xl p-0"
+                  >
                     <MessageCircle className="w-5 h-5" />
                   </Button>
+
                 </div>
               </div>
             </div>
@@ -377,6 +384,16 @@ export default function ServiceDetails() {
       </div>
 
       <Footer />
+
+      {seller && (
+        <ChatDialog 
+          isOpen={isChatOpen}
+          onOpenChange={setIsChatOpen}
+          receiverUnionId={seller.unionId}
+          receiverName={seller.name}
+          receiverAvatar={seller.avatar}
+        />
+      )}
     </div>
   );
 }

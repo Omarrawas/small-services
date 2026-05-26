@@ -1,20 +1,22 @@
 import { useParams, Link } from "react-router";
-import { Star, Clock, MessageSquare, ShoppingBag, CheckCircle, ShieldCheck, Zap, Globe } from "lucide-react";
+import { Star, ShoppingBag, ShieldCheck, Zap, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import ServiceCard from "@/components/cards/ServiceCard";
 import { trpc } from "@/providers/trpc";
+import { ChatDialog } from "@/components/chat/ChatDialog";
+import { useState } from "react";
 
 export default function SellerProfile() {
   const { id } = useParams<{ id: string }>();
   const sellerId = parseInt(id || "0");
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   // Queries
-  const { data: seller, isLoading: sellerLoading } = trpc.sellers.byId.useQuery({ id: sellerId }, { enabled: !!sellerId });
+  const { data: seller, isLoading: sellerLoading } = trpc.sellers.profile.useQuery({ id: sellerId }, { enabled: !!sellerId });
   const { data: sellerServices, isLoading: servicesLoading } = trpc.services.bySeller.useQuery({ sellerId }, { enabled: !!sellerId });
   const { data: sellerReviews } = trpc.reviews.bySeller.useQuery({ sellerId }, { enabled: !!sellerId });
 
@@ -91,9 +93,12 @@ export default function SellerProfile() {
               </div>
 
               <div className="flex gap-4 w-full md:w-auto">
-                 <Button className="flex-1 md:w-40 bg-[#0D5D48] hover:bg-[#094533] text-white rounded-2xl h-14 font-black shadow-lg shadow-[#0D5D48]/20 transition-all active:scale-[0.98]">
-                    تواصل معه
-                 </Button>
+                  <Button 
+                    onClick={() => setIsChatOpen(true)}
+                    className="flex-1 md:w-40 bg-[#0D5D48] hover:bg-[#094533] text-white rounded-2xl h-14 font-black shadow-lg shadow-[#0D5D48]/20 transition-all active:scale-[0.98]"
+                  >
+                     تواصل معه
+                  </Button>
               </div>
            </div>
         </div>
@@ -123,7 +128,7 @@ export default function SellerProfile() {
                </div>
             ) : sellerServices && sellerServices.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                {sellerServices.map((service, i) => (
+                {sellerServices.map((service: { id: number; sellerId: number; title: string; slug: string; price: string; images: unknown; rating: string | null; totalReviews: number | null; featured: boolean | null; deliveryTime: number | null }, i: number) => (
                   <div key={service.id} className="animate-fade-in-up" style={{ animationDelay: `${i * 0.05}s`, opacity: 0 }}>
                     <ServiceCard
                       id={service.id}
@@ -153,7 +158,7 @@ export default function SellerProfile() {
               <h3 className="text-[#1A1A2E] font-black text-2xl mb-8">تقييمات العملاء</h3>
               {sellerReviews && sellerReviews.length > 0 ? (
                 <div className="space-y-10">
-                  {sellerReviews.map((review) => (
+                  {sellerReviews.map((review: { id: number; reviewerAvatar: string | null; reviewerName: string; rating: number; createdAt: string | null; comment: string | null; serviceTitle?: string }) => (
                     <div key={review.id} className="flex flex-col sm:flex-row gap-6 p-6 rounded-3xl hover:bg-gray-50 transition-colors group">
                       <img src={review.reviewerAvatar || `https://api.dicebear.com/7.x/initials/svg?seed=${review.reviewerName}`} alt="" className="w-16 h-16 rounded-2xl object-cover" />
                       <div className="flex-1">
@@ -218,6 +223,14 @@ export default function SellerProfile() {
       </div>
 
       <Footer />
+
+      <ChatDialog 
+        isOpen={isChatOpen}
+        onOpenChange={setIsChatOpen}
+        receiverUnionId={seller.unionId}
+        receiverName={seller.name}
+        receiverAvatar={seller.avatar}
+      />
     </div>
   );
 }

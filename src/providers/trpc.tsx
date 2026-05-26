@@ -13,12 +13,18 @@ const trpcClient = trpc.createClient({
     httpBatchLink({
       url: "/api/trpc",
       transformer: superjson,
-      fetch(input, init) {
-        return globalThis.fetch(input, {
-          ...(init ?? {}),
-          credentials: "include",
-        });
+      async headers() {
+        const { auth } = await import("@/lib/firebase");
+        const user = auth.currentUser;
+        if (user) {
+          const token = await user.getIdToken();
+          return {
+            Authorization: `Bearer ${token}`,
+          };
+        }
+        return {};
       },
+
     }),
   ],
 });

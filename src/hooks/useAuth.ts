@@ -33,7 +33,12 @@ export function useAuth(options?: UseAuthOptions) {
     },
   });
 
-  const logout = useCallback(() => logoutMutation.mutate(), [logoutMutation]);
+  const logout = useCallback(async () => {
+    const { auth } = await import("@/lib/firebase");
+    await auth.signOut();
+    logoutMutation.mutate();
+  }, [logoutMutation]);
+
 
   useEffect(() => {
     if (redirectOnUnauthenticated && !isLoading && !user) {

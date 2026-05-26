@@ -12,7 +12,10 @@ import { statusLabels, statusColors, transactionTypeLabels, transactionTypeColor
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/providers/trpc";
 
+import { useChat } from "@/hooks/useChat";
+
 const sidebarItems = [
+
   { icon: LayoutDashboard, label: "لوحة التحكم", value: "dashboard" },
   { icon: ShoppingBag, label: "طلباتي", value: "orders" },
   { icon: Wallet, label: "محفظتي", value: "wallet" },
@@ -30,13 +33,12 @@ export default function Dashboard() {
   const { data: walletData } = trpc.wallet.balance.useQuery(undefined, { enabled: !!user });
   const { data: ordersData } = trpc.orders.list.useQuery({ role: "buyer" }, { enabled: !!user });
   const { data: transactionsData } = trpc.wallet.transactions.useQuery({ limit: 10 }, { enabled: !!user });
-  const { data: conversationsData } = trpc.chat.conversations.useQuery(undefined, { enabled: !!user });
-
+  const { conversations, loading: chatLoading } = useChat();
   const balance = parseFloat(walletData?.balance ?? "0");
   const orders = ordersData ?? [];
   const activeOrders = orders.filter((o) => o.status === "in_progress" || o.status === "pending" || o.status === "revision");
-  const conversations = conversationsData ?? [];
   const walletTransactions = transactionsData ?? [];
+
 
   const stats = [
     { label: "رصيد المحفظة", value: `${balance.toLocaleString()} ل.س`, trend: 0, icon: Wallet, color: "bg-[#E8F5F0] text-[#0D5D48]" },
