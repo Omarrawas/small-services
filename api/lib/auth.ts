@@ -1,6 +1,6 @@
 import { auth } from "./firebase-admin";
 import { findUserByUnionId } from "../queries/users";
-import { Errors } from "@contracts/errors";
+import { Errors } from "../../contracts/errors";
 
 async function verifyTokenWithRestApi(idToken: string) {
   const apiKey =

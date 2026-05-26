@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, gte, lte, like, sql, count } from "drizzle-orm";
 import { getDb } from "./connection";
-import * as schema from "@db/schema";
+import * as schema from "../../db/schema";
 
 export type ServiceFilters = {
   categorySlug?: string;

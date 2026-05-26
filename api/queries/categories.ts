@@ -1,6 +1,6 @@
 import { eq, and, sql } from "drizzle-orm";
 import { getDb } from "./connection";
-import * as schema from "@db/schema";
+import * as schema from "../../db/schema";
 
 export async function listCategories() {
   const rows = await getDb()

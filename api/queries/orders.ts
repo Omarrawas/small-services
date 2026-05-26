@@ -1,7 +1,7 @@
 import { eq, and, desc, count } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getDb } from "./connection";
-import * as schema from "@db/schema";
+import * as schema from "../../db/schema";
 
 function generateOrderNumber() {
   return `ORD-${new Date().getFullYear()}-${nanoid(6).toUpperCase()}`;

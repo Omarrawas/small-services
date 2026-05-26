@@ -1,6 +1,6 @@
 import { eq, desc } from "drizzle-orm";
 import { getDb } from "./connection";
-import * as schema from "@db/schema";
+import * as schema from "../../db/schema";
 
 export async function listTopSellers(limit = 10) {
   return getDb()
