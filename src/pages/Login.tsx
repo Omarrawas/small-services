@@ -1,23 +1,79 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from "react";
+import { useNavigate, useLocation } from "react-router";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { auth } from "@/lib/firebase";
-import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { useNavigate } from "react-router";
+import {
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+} from "firebase/auth";
 import { trpc } from "@/providers/trpc";
+import { toast } from "sonner";
+
+type Mode = "login" | "register";
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const utils = trpc.useUtils();
 
-  const handleSignIn = async () => {
+  const initialMode = location.pathname === "/register" ? "register" : "login";
+  const [mode, setMode] = useState<Mode>(initialMode);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const switchMode = (newMode: Mode) => {
+    setMode(newMode);
+    navigate(newMode === "register" ? "/register" : "/login", { replace: true });
+  };
+
+  const handleGoogleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
+      setLoading(true);
       await signInWithPopup(auth, provider);
-      // After login, invalidate TRPC queries to fetch the user profile from the backend
       await utils.invalidate();
       navigate("/");
-    } catch (error) {
-      console.error("Login failed", error);
+    } catch (error: any) {
+      toast.error(error?.message || "فشل تسجيل الدخول");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      toast.error("يرجى إدخال البريد الإلكتروني وكلمة المرور");
+      return;
+    }
+    try {
+      setLoading(true);
+      if (mode === "login") {
+        await signInWithEmailAndPassword(auth, email, password);
+      } else {
+        await createUserWithEmailAndPassword(auth, email, password);
+      }
+      await utils.invalidate();
+      navigate("/");
+    } catch (error: any) {
+      const msg =
+        error?.code === "auth/email-already-in-use"
+          ? "البريد الإلكتروني مستخدم مسبقاً"
+          : error?.code === "auth/invalid-credential"
+            ? "البريد الإلكتروني أو كلمة المرور غير صحيحة"
+            : error?.code === "auth/weak-password"
+              ? "كلمة المرور يجب أن تكون 6 أحرف على الأقل"
+              : error?.message || "فشل تسجيل الدخول";
+      toast.error(msg);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -25,15 +81,62 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-sm border-2">
         <CardHeader className="text-center space-y-1">
-          <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
-          <p className="text-sm text-muted-foreground">Sign in to your account</p>
+          <CardTitle className="text-2xl font-bold">
+            {mode === "login" ? "مرحباً بعودتك" : "إنشاء حساب جديد"}
+          </CardTitle>
+          <CardDescription className="text-sm">
+            {mode === "login" ? "سجل دخولك للمتابعة" : "أنشئ حسابك للبدء"}
+          </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <form onSubmit={handleEmailAuth} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">البريد الإلكتروني</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="name@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                dir="ltr"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">كلمة المرور</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                dir="ltr"
+              />
+            </div>
+            <Button type="submit" className="w-full h-12 text-base font-medium" disabled={loading}>
+              {loading
+                ? "جاري المعالجة..."
+                : mode === "login"
+                  ? "تسجيل الدخول"
+                  : "إنشاء الحساب"}
+            </Button>
+          </form>
+
+          <div className="relative">
+            <Separator />
+            <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 mx-auto w-fit bg-background px-2 text-xs text-muted-foreground">
+              أو
+            </span>
+          </div>
+
           <Button
-            className="w-full h-12 text-base font-medium transition-all hover:scale-[1.02]"
-            onClick={handleSignIn}
+            variant="outline"
+            className="w-full h-12 text-base font-medium"
+            onClick={handleGoogleSignIn}
+            disabled={loading}
           >
-            <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+            <svg className="ml-2 h-4 w-4 shrink-0" viewBox="0 0 24 24">
               <path
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
                 fill="#4285F4"
@@ -51,11 +154,36 @@ export default function Login() {
                 fill="#EA4335"
               />
             </svg>
-            Sign in with Google
+            {mode === "login" ? "تسجيل الدخول" : "التسجيل"} باستخدام Google
           </Button>
+
+          <div className="text-center text-sm">
+            {mode === "login" ? (
+              <span className="text-muted-foreground">
+                ليس لديك حساب؟{" "}
+                <button
+                  type="button"
+                  onClick={() => switchMode("register")}
+                  className="font-medium text-primary hover:underline"
+                >
+                  إنشاء حساب
+                </button>
+              </span>
+            ) : (
+              <span className="text-muted-foreground">
+                لديك حساب بالفعل؟{" "}
+                <button
+                  type="button"
+                  onClick={() => switchMode("login")}
+                  className="font-medium text-primary hover:underline"
+                >
+                  تسجيل الدخول
+                </button>
+              </span>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>
   );
 }
-
