@@ -20,8 +20,9 @@ async function verifyTokenWithRestApi(idToken: string) {
     throw new Error(`Token verification failed: ${res.status}`);
   }
 
-  const data = await res.json();
+  const data = (await res.json()) as any;
   const account = data.users?.[0];
+
   if (!account) {
     throw new Error("No account found for token");
   }
