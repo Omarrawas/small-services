@@ -9,7 +9,12 @@ import { env } from "./lib/env";
 const app = new Hono<{ Bindings: HttpBindings }>();
 
 app.use(bodyLimit({ maxSize: 50 * 1024 * 1024 }));
-app.use("/api/trpc/*", async (c) => {
+app.onError((err, c) => {
+  console.error("[Hono Error]", err);
+  return c.json({ error: err.message || "Internal Server Error", stack: env.isProduction ? undefined : err.stack }, 500);
+});
+
+app.all("/api/trpc/*", async (c) => {
   return fetchRequestHandler({
     endpoint: "/api/trpc",
     req: c.req.raw,
@@ -17,9 +22,11 @@ app.use("/api/trpc/*", async (c) => {
     createContext,
   });
 });
+
 app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 
 export default app;
+
 
 if (env.isProduction && !process.env.VERCEL) {
   const { serve } = await import("@hono/node-server");

@@ -33,4 +33,7 @@ export async function upsertUser(data: InsertUser) {
     .insert(schema.users)
     .values(values)
     .onDuplicateKeyUpdate({ set: updateSet });
+    
+  return findUserByUnionId(data.unionId);
 }
+

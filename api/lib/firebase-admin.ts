@@ -3,7 +3,13 @@ import { env } from "./env";
 
 function getFirebaseApp() {
   try {
+    if (!env.firebase.projectId || !env.firebase.clientEmail || !env.firebase.privateKey) {
+      console.warn("[Firebase Admin] Skipping initialization: Missing credentials in environment variables.");
+      return null;
+    }
+    
     if (!admin.apps.length) {
+      console.log("[Firebase Admin] Initializing for project:", env.firebase.projectId);
       admin.initializeApp({
         credential: admin.credential.cert({
           projectId: env.firebase.projectId,
@@ -15,10 +21,10 @@ function getFirebaseApp() {
     return admin;
   } catch (error) {
     console.error("[Firebase Admin] Initialization failed:", error);
-    console.error("[Firebase Admin] Ensure FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY are set.");
     return null;
   }
 }
+
 
 const app = getFirebaseApp();
 

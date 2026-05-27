@@ -36,11 +36,16 @@ async function verifyTokenWithRestApi(idToken: string) {
 
 export async function authenticateRequest(headers: Headers) {
   const authHeader = headers.get("authorization");
+  console.log("[Auth] Authorization header present:", !!authHeader);
+  
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    console.warn("[Auth] Missing or invalid authorization header format.");
     throw Errors.forbidden("Missing or invalid authorization header");
   }
 
   const idToken = authHeader.split("Bearer ")[1];
+  console.log("[Auth] Token length:", idToken?.length);
+
 
   try {
     let uid: string;
@@ -65,16 +70,24 @@ export async function authenticateRequest(headers: Headers) {
 
     let user = await findUserByUnionId(uid);
     if (!user) {
+      console.log("[Auth] User not found in DB, creating new user for UID:", uid);
       const { upsertUser } = await import("../queries/users");
-      user = await upsertUser({
+      user = (await upsertUser({
         unionId: uid,
         name: displayName || "Anonymous",
         email: email,
         avatar: photoURL,
         lastSignInAt: new Date(),
-      });
+      })) || undefined;
     }
+    
+    if (!user) {
+      console.error("[Auth] Failed to retrieve user after upsert.");
+      throw Errors.internal("Failed to synchronize user session.");
+    }
+    
     return user;
+
   } catch (error) {
     console.error("[Auth] Token verification failed", error);
     throw Errors.forbidden("Invalid authentication token.");
