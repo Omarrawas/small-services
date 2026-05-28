@@ -1,8 +1,6 @@
 {
   "version": 2,
-  "public": true,
-  "framework": "vite",
-  "outputDirectory": "build/public",
+  "cleanUrls": true,
   "rewrites": [
     {
       "source": "/api/(.*)",

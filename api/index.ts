@@ -1,59 +1,51 @@
 import { Hono } from "hono";
 import { handle } from "hono/vercel";
-import { bodyLimit } from "hono/body-limit";
-import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
-import { appRouter } from "./router";
-import { createContext } from "./context";
 
-// We define the app
-const app = new Hono().basePath("/api");
+const app = new Hono();
 
-// COOP and Debug headers
-app.use("*", async (c, next) => {
-  c.res.headers.set("Cross-Origin-Opener-Policy", "unsafe-none");
-  await next();
-});
+// Health check works even if everything else fails
+app.get("/api/health", (c) => c.json({ status: "alive", time: new Date().toISOString() }));
 
-// Error handling
-app.onError((err, c) => {
-  console.error("[CRITICAL HONO]", err);
-  return c.json({ 
-    error: "Server Error", 
-    message: err.message,
-    details: err.stack
-  }, 500);
-});
-
-app.use(bodyLimit({ maxSize: 50 * 1024 * 1024 }));
-
-// Health
-app.get("/health", (c) => c.json({ status: "ok", time: new Date().toISOString(), ver: "v3" }));
-
-// Diagnose
-app.get("/diagnose", async (c) => {
+app.all("/api/trpc/*", async (c) => {
   try {
-    const { getDb } = await import("./queries/connection");
-    await getDb().execute("SELECT 1");
-    return c.json({ db: "CONNECTED", env: !!process.env.DATABASE_URL });
-  } catch (e: any) {
-    return c.json({ db: "FAILED", error: e.message, env: !!process.env.DATABASE_URL }, 500);
+    // Lazy load the big dependencies to catch initialization errors
+    const [
+      { fetchRequestHandler }, 
+      { appRouter }, 
+      { createContext }
+    ] = await Promise.all([
+      import("@trpc/server/adapters/fetch"),
+      import("./router"),
+      import("./context")
+    ]);
+
+    return await fetchRequestHandler({
+      endpoint: "/api/trpc",
+      req: c.req.raw,
+      router: appRouter,
+      createContext: (opts) => createContext(opts),
+    });
+  } catch (err: any) {
+    console.error("[INIT CRASH]", err);
+    return c.json({ 
+      error: "Initialization Failed", 
+      message: err.message,
+      stack: err.stack 
+    }, 500);
   }
 });
 
-// tRPC
-app.all("/trpc/*", async (c) => {
-  return fetchRequestHandler({
-    endpoint: "/api/trpc",
-    req: c.req.raw,
-    router: appRouter,
-    createContext: (opts) => createContext(opts),
-    onError: ({ error, path }) => {
-      console.error(`[tRPC Error] ${path}:`, error);
-    },
-  });
+// Diagnose helper
+app.get("/api/diagnose", async (c) => {
+  try {
+    const { getDb } = await import("./queries/connection");
+    await getDb().execute("SELECT 1");
+    return c.json({ db: "CONNECTED" });
+  } catch (e: any) {
+    return c.json({ db: "FAILED", message: e.message }, 500);
+  }
 });
 
-// Vercel Entry Point
 export const GET = handle(app);
 export const POST = handle(app);
 export const PUT = handle(app);
