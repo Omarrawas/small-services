@@ -10,9 +10,14 @@ let instance: any;
 
 export function getDb() {
   if (!instance) {
+    const url = env.databaseUrl;
+    if (!url) {
+      throw new Error("DATABASE_URL is not defined in environment variables.");
+    }
+    
     // TiDB Cloud Serverless requires explicit SSL configuration for most drivers
     const poolConnection = mysql.createPool({
-      uri: env.databaseUrl,
+      uri: url,
       ssl: {
         // This is necessary for TiDB Cloud Serverless to allow the connection
         rejectUnauthorized: true,

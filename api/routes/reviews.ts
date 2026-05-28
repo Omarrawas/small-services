@@ -7,15 +7,16 @@ import { TRPCError } from "@trpc/server";
 export const reviewsRouter = createRouter({
   byService: publicQuery
     .input(z.object({ serviceId: z.number().int() }))
-    .query(async ({ input }: { input: { serviceId: number } }) => {
+    .query(async ({ input }) => {
       return listReviewsByService(input.serviceId);
     }),
 
   bySeller: publicQuery
     .input(z.object({ sellerId: z.number().int() }))
-    .query(async ({ input }: { input: { sellerId: number } }) => {
+    .query(async ({ input }) => {
       return listReviewsBySeller(input.sellerId);
     }),
+
 
   create: authedQuery
     .input(
@@ -26,7 +27,8 @@ export const reviewsRouter = createRouter({
         comment: z.string().optional(),
       }),
     )
-    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
+    .mutation(async ({ input, ctx }) => {
+
       const order = await findOrderById(input.orderId);
       if (!order) throw new TRPCError({ code: "NOT_FOUND", message: "الطلب غير موجود" });
       if (order.status !== "completed")

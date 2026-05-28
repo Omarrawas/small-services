@@ -28,5 +28,6 @@ function getFirebaseApp() {
 
 const app = getFirebaseApp();
 
-export const auth = app?.auth() ?? null;
-export const db = app?.firestore() ?? null;
+export const auth = app ? app.auth() : null;
+export const db = app ? app.firestore() : null;
+

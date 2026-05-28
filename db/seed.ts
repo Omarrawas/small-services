@@ -62,7 +62,7 @@ async function seed() {
   const sampleServices = [
     {
       sellerId: allUsers[0].id,
-      categoryId: allCats.find(c => c.slug === "graphic-design")?.id || 1,
+      categoryId: allCats.find((c: any) => c.slug === "graphic-design")?.id || 1,
       title: "تصميم شعار احترافي لشركتك خلال 48 ساعة",
       slug: "professional-logo-design-demo",
       description: "سأقوم بتصميم شعار فريد يعبر عن هوية شركتك بجودة عالية وصيغ متعددة.",
@@ -74,7 +74,7 @@ async function seed() {
     },
     {
       sellerId: allUsers[1].id,
-      categoryId: allCats.find(c => c.slug === "programming")?.id || 1,
+      categoryId: allCats.find((c: any) => c.slug === "programming")?.id || 1,
       title: "إنشاء متجر إلكتروني متكامل باستخدام React و Tailwind",
       slug: "react-ecommerce-store-demo",
       description: "بناء متجر سريع الاستجابة مع لوحة تحكم وسلة مشتريات وتصميم عصري.",

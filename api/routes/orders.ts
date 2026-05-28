@@ -53,11 +53,12 @@ export const ordersRouter = createRouter({
         buyerId: ctx.user.id,
         sellerId: service.sellerId,
         serviceId: service.id,
-        extras: input.extras,
+        extras: input.extras as any,
         totalAmount,
         requirements: input.requirements,
         deliveryDate,
       });
+
 
       return { success: true };
     }),

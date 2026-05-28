@@ -70,11 +70,12 @@ export const servicesRouter = createRouter({
         .substring(0, 80)}-${Date.now()}`;
 
       await createService({
-        ...input,
+        ...(input as any),
         slug,
         sellerId: ctx.user.id,
         status: "pending",
       });
+
 
       return { success: true };
     }),
@@ -98,7 +99,8 @@ export const servicesRouter = createRouter({
     )
     .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
-      await updateService(id, ctx.user.id, data);
+      await updateService(id, ctx.user.id, data as any);
+
       return { success: true };
     }),
 
