@@ -35,17 +35,26 @@ export default function Login() {
       try {
         const result = await getRedirectResult(auth);
         if (result) {
+          console.log("Redirect result detected:", result.user.email);
           setLoading(true);
+          toast.loading("جاري التحقق من الحساب...");
+          
           await utils.invalidate();
           const me = await utils.client.auth.me.query();
+          
           if (me) {
+            toast.success("تم تسجيل الدخول بنجاح");
             navigate("/");
+          } else {
+            toast.error("فشل التعرف على المستخدم في قاعدة البيانات");
           }
         }
       } catch (error: any) {
         console.error("Redirect check failed:", error);
+        toast.error(`فشل استكمال تسجيل الدخول: ${error.message || "خطأ غير معروف"}`);
       } finally {
         setLoading(false);
+        toast.dismiss();
       }
     };
     checkRedirect();
