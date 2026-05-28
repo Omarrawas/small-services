@@ -1,17 +1,29 @@
 import { Hono } from "hono";
 import { handle } from "hono/vercel";
 
+// extremely lightweight app startup
 const app = new Hono();
 
-// Health check works even if everything else fails
-app.get("/api/health", (c) => c.json({ status: "alive", time: new Date().toISOString() }));
+// NO global middlewares for now to avoid any overhead
+// Health check: must be lightning fast
+app.get("/api/health", (c) => c.json({ status: "ok", time: new Date().toISOString(), ver: "v5-lite" }));
 
+// Diagnose: check basic stuff
+app.get("/api/diagnose", async (c) => {
+  return c.json({ 
+    env: { 
+      node: process.version,
+      hasDb: !!process.env.DATABASE_URL 
+    } 
+  });
+});
+
+// tRPC: lazy load everything
 app.all("/api/trpc/*", async (c) => {
   try {
-    // Lazy load the big dependencies to catch initialization errors
     const [
-      { fetchRequestHandler }, 
-      { appRouter }, 
+      { fetchRequestHandler },
+      { appRouter },
       { createContext }
     ] = await Promise.all([
       import("@trpc/server/adapters/fetch"),
@@ -26,23 +38,8 @@ app.all("/api/trpc/*", async (c) => {
       createContext: (opts) => createContext(opts),
     });
   } catch (err: any) {
-    console.error("[INIT CRASH]", err);
-    return c.json({ 
-      error: "Initialization Failed", 
-      message: err.message,
-      stack: err.stack 
-    }, 500);
-  }
-});
-
-// Diagnose helper
-app.get("/api/diagnose", async (c) => {
-  try {
-    const { getDb } = await import("./queries/connection");
-    await getDb().execute("SELECT 1");
-    return c.json({ db: "CONNECTED" });
-  } catch (e: any) {
-    return c.json({ db: "FAILED", message: e.message }, 500);
+    console.error("tRPC initialization failed:", err);
+    return c.json({ error: "Init Error", message: err.message }, 500);
   }
 });
 
