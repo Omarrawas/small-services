@@ -61,21 +61,8 @@ export default function Login() {
     try {
       setLoading(true);
       await signInWithRedirect(auth, provider);
-      // The browser will redirect, no need for logic after this line
     } catch (error: any) {
-      // تحقق من أن API التعرف على الحالة يعمل
-      try {
-        const result = await utils.client.auth.me.query();
-        if (result) {
-          navigate("/");
-        } else {
-          toast.error("تم تسجيل الدخول ولكن API لا يتعرف على المستخدم. تحقق من إعدادات الخادم.");
-        }
-      } catch (apiErr: any) {
-        console.error("[Login] auth.me after login failed:", apiErr);
-        toast.error(`تم تسجيل الدخول ولكن فشل الاتصال بالخادم: ${apiErr?.message || "خطأ غير معروف"}`);
-      }
-    } catch (error: any) {
+      console.error("[Login] Google Sign-In Error:", error);
       toast.error(error?.message || "فشل تسجيل الدخول");
     } finally {
       setLoading(false);
