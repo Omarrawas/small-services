@@ -31,13 +31,16 @@ export default function Login() {
 
   // Handle redirect result on mount
   useEffect(() => {
+    console.log("Login page mounted, checking for redirect result...");
     const checkRedirect = async () => {
       try {
+        // Find if we are actually coming back from a redirect
         const result = await getRedirectResult(auth);
+        
         if (result) {
-          console.log("Redirect result detected:", result.user.email);
+          console.log("Redirect result found for:", result.user.email);
           setLoading(true);
-          toast.loading("جاري التحقق من الحساب...");
+          toast.loading("تم العودة من غوغل، جاري التحقق من الهوية...");
           
           await utils.invalidate();
           const me = await utils.client.auth.me.query();
