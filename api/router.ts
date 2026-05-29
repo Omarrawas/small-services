@@ -1,31 +1,27 @@
 import { authRouter } from "./auth-router";
 import { createRouter, publicQuery } from "./middleware";
-// We temporarily disable these to isolate the 500 error cause
-// import { categoriesRouter } from "./routes/categories";
-// import { servicesRouter } from "./routes/services";
-// import { sellersRouter } from "./routes/sellers";
+import { categoriesRouter } from "./routes/categories";
+import { servicesRouter } from "./routes/services";
+import { sellersRouter } from "./routes/sellers";
+import { ordersRouter } from "./routes/orders";
+import { walletRouter } from "./routes/wallet";
+import { reviewsRouter } from "./routes/reviews";
+import { chatRouter } from "./routes/chat";
+import { adminRouter } from "./routes/admin";
+import { notificationsRouter } from "./routes/notifications";
 
 export const appRouter = createRouter({
   ping: publicQuery.query(() => ({ ok: true, ts: Date.now() })),
   auth: authRouter,
-  // Mock implementations for the ones we disabled to keep types happy in frontend if needed
-  categories: createRouter({
-    list: publicQuery.query(() => ([])),
-  }),
-  services: createRouter({
-    featured: publicQuery.query(() => ([])),
-    list: publicQuery.query(() => ({ services: [], total: 0, pages: 0 })),
-  }),
-  sellers: createRouter({
-    list: publicQuery.query(() => ([])),
-  }),
-  // Other routers can stay for now as empty objects if they don't load huge things
-  orders: createRouter({}),
-  wallet: createRouter({}),
-  reviews: createRouter({}),
-  chat: createRouter({}),
-  admin: createRouter({}),
-  notifications: createRouter({}),
+  categories: categoriesRouter,
+  services: servicesRouter,
+  sellers: sellersRouter,
+  orders: ordersRouter,
+  wallet: walletRouter,
+  reviews: reviewsRouter,
+  chat: chatRouter,
+  admin: adminRouter,
+  notifications: notificationsRouter,
 });
 
 export type AppRouter = typeof appRouter;
