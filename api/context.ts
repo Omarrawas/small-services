@@ -1,11 +1,10 @@
 import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
-import type { User } from "../db/schema";
 import { authenticateRequest } from "./lib/auth";
 
 export type TrpcContext = {
   req: Request;
   resHeaders: Headers;
-  user?: User;
+  user?: any;
 };
 
 export async function createContext(
@@ -13,8 +12,10 @@ export async function createContext(
 ): Promise<TrpcContext> {
   const ctx: TrpcContext = { req: opts.req, resHeaders: opts.resHeaders };
   try {
-    ctx.user = await authenticateRequest(opts.req.headers);
-  } catch {
+    // Pass the raw request to authenticateRequest
+    ctx.user = await authenticateRequest(opts.req);
+  } catch (err: any) {
+    console.error("[Context Creation Error]:", err.message);
     // Authentication is optional here
   }
   return ctx;
