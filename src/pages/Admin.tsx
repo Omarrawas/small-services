@@ -2,23 +2,24 @@ import { useState } from "react";
 import { Link } from "react-router";
 import {
   LayoutDashboard, Users, Package, ShoppingCart, Wallet, AlertTriangle,
-  CheckCircle, ChevronLeft, Eye, Check, X, RefreshCcw
+  CheckCircle, ChevronLeft, Check, X, RefreshCcw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Header from "@/components/layout/Header";
-import { statusLabels, statusColors } from "@/lib/mockData";
+// import { statusLabels, statusColors } from "@/lib/mockData";
 import { trpc } from "@/providers/trpc";
 import { toast } from "sonner";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 const sidebarItems = [
   { icon: LayoutDashboard, label: "لوحة التحكم", value: "dashboard" },
   { icon: Users, label: "المستخدمون", value: "users" },
   { icon: Package, label: "الخدمات", value: "services" },
   { icon: ShoppingCart, label: "الطلبات", value: "orders" },
-  { icon: Wallet, label: "السحوبات", value: "withdrawals" },
   { icon: CheckCircle, label: "الإيداعات", value: "deposits" },
+  { icon: Wallet, label: "السحوبات", value: "withdrawals" },
   { icon: AlertTriangle, label: "النزاعات", value: "disputes" },
 ];
 
@@ -27,13 +28,13 @@ export default function Admin() {
   const utils = trpc.useUtils();
 
   // Queries
-  const { data: stats, isLoading: statsLoading } = trpc.admin.stats.useQuery(undefined, {
+  const { data: stats } = trpc.admin.stats.useQuery(undefined, {
     retry: false,
     staleTime: 30000,
   });
-  const { data: users, isLoading: usersLoading } = trpc.admin.users.useQuery(undefined, { enabled: activeTab === "users" });
-  const { data: pendingServices, isLoading: servicesLoading } = trpc.admin.services.useQuery(undefined, { enabled: activeTab === "dashboard" || activeTab === "services" });
-  const { data: recentOrders, isLoading: ordersLoading } = trpc.admin.orders.useQuery(undefined, { enabled: activeTab === "orders" });
+  const { data: users } = trpc.admin.users.useQuery(undefined, { enabled: activeTab === "users" });
+  const { data: pendingServices } = trpc.admin.services.useQuery(undefined, { enabled: activeTab === "dashboard" || activeTab === "services" });
+  // const { data: recentOrders } = trpc.admin.orders.useQuery(undefined, { enabled: activeTab === "orders" });
   const { data: withdrawals } = trpc.admin.withdrawals.useQuery(undefined, { enabled: activeTab === "withdrawals" });
   const { data: deposits } = trpc.admin.deposits.useQuery(undefined, { enabled: activeTab === "deposits" });
 
@@ -60,6 +61,27 @@ export default function Admin() {
     }
   });
 
+  const adjustBalance = trpc.admin.adjustBalance.useMutation({
+    onSuccess: () => {
+      toast.success("تم تعديل الرصيد بنجاح");
+      utils.admin.users.invalidate();
+      utils.admin.stats.invalidate();
+      setIsBalanceModalOpen(false);
+    }
+  });
+
+  const promoteToAdmin = trpc.admin.promoteToAdmin.useMutation({
+    onSuccess: () => {
+      toast.success("تم ترقية المستخدم إلى مسؤول بنجاح");
+      utils.admin.users.invalidate();
+    }
+  });
+
+  const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [balanceAmount, setBalanceAmount] = useState("");
+  const [adjustNote, setAdjustNote] = useState("");
+
   const updateWithdrawal = trpc.admin.updateWithdrawal.useMutation({
     onSuccess: () => {
       toast.success("تم تحديث حالة طلب السحب");
@@ -69,11 +91,11 @@ export default function Admin() {
 
   const dashboardStats = [
     { label: "المستخدمون", value: stats?.users ?? 0, icon: Users, color: "bg-blue-50 text-blue-600" },
-    { label: "الخدمات", value: stats?.services ?? 0, icon: Package, color: "bg-purple-50 text-purple-600" },
-    { label: "الطلبات", value: stats?.orders ?? 0, icon: ShoppingCart, color: "bg-amber-50 text-amber-600" },
-    { label: "رصيد المحافظ", value: stats?.totalWalletBalance ?? 0, isCurrency: true, icon: Wallet, color: "bg-green-50 text-green-600" },
+    { label: "إجمالي المبيعات", value: stats?.totalSales ?? 0, isCurrency: true, icon: ShoppingCart, color: "bg-purple-50 text-purple-600" },
+    { label: "رصيد المحافظ", value: stats?.totalWalletBalance ?? 0, isCurrency: true, icon: Wallet, color: "bg-amber-50 text-amber-600" },
+    { label: "إجمالي الإيداعات", value: stats?.totalDeposited ?? 0, isCurrency: true, icon: CheckCircle, color: "bg-green-50 text-green-600" },
+    { label: "إجمالي السحوبات", value: stats?.totalWithdrawn ?? 0, isCurrency: true, icon: AlertTriangle, color: "bg-red-50 text-red-600" },
     { label: "معدل الإنجاز", value: stats?.completionRate ?? 0, isPercent: true, icon: CheckCircle, color: "bg-[#E8F5F0] text-[#0D5D48]" },
-    { label: "النزاعات", value: stats?.disputes ?? 0, icon: AlertTriangle, color: "bg-red-50 text-red-600" },
   ];
 
   return (
@@ -136,11 +158,14 @@ export default function Admin() {
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                 <div className="bg-white rounded-2xl p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] border border-[#E5E5DF]/50">
                   <div className="flex items-center justify-between mb-6">
-                    <h3 className="font-bold text-[#1A1A2E]">الخدمات المعلقة</h3>
-                    <Badge variant="secondary" className="bg-[#E8F5F0] text-[#0D5D48] border-0">{pendingServices?.length ?? 0}</Badge>
+                    <h3 className="font-bold text-[#1A1A2E]">طلبات شحن وتوثيق معلقة</h3>
+                    <div className="flex gap-2">
+                       <Badge variant="secondary" className="bg-amber-50 text-amber-600 border-0">{stats?.pendingDepositsCount ?? 0} إيداع</Badge>
+                       <Badge variant="secondary" className="bg-red-50 text-red-600 border-0">{pendingServices?.length ?? 0} خدمة</Badge>
+                    </div>
                   </div>
                   <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
-                    {pendingServices?.map((service) => (
+                    {pendingServices?.map((service: any) => (
                       <div key={service.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-transparent hover:border-[#0D5D48]/20 transition-all">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center border border-gray-200">
@@ -164,6 +189,11 @@ export default function Admin() {
                     {(!pendingServices || pendingServices.length === 0) && (
                       <p className="text-gray-400 text-center py-10 text-sm italic">لا توجد خدمات بانتظار المراجعة</p>
                     )}
+                  </div>
+                  <div className="mt-6">
+                     <Button onClick={() => setActiveTab("deposits")} className="w-full bg-[#0D5D48] rounded-xl h-12 gap-2">
+                        مراجعة طلبات الإيداع المفتوحة ({stats?.pendingDepositsCount ?? 0})
+                     </Button>
                   </div>
                 </div>
 
@@ -194,29 +224,119 @@ export default function Admin() {
 
           {activeTab === "users" && (
             <div className="animate-in fade-in slide-in-from-left-4 duration-500">
-              <h2 className="text-2xl font-bold text-[#1A1A2E] mb-6">المستخدمون</h2>
-              <div className="bg-white rounded-2xl shadow-xl border border-[#E5E5DF]/50 overflow-hidden">
-                <Table>
-                  <TableHeader><TableRow className="bg-gray-50"><TableHead className="text-right">المستخدم</TableHead><TableHead className="text-right">الدور</TableHead><TableHead className="text-right">الحالة</TableHead><TableHead className="text-right">تاريخ الانضمام</TableHead><TableHead className="text-right">إجراءات</TableHead></TableRow></TableHeader>
-                  <TableBody>
-                    {users?.map((u) => (
-                      <TableRow key={u.id} className="hover:bg-gray-50/50">
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <img src={u.avatar ?? `https://api.dicebear.com/7.x/initials/svg?seed=${u.name}`} alt="" className="w-10 h-10 rounded-2xl object-cover" />
-                            <div><p className="font-bold text-sm text-[#1A1A2E]">{u.name}</p><p className="text-[10px] text-gray-500">{u.email}</p></div>
-                          </div>
-                        </TableCell>
-                        <TableCell><Badge variant="secondary" className="bg-blue-50 text-blue-600 border-0 text-[10px]">{u.role}</Badge></TableCell>
-                        <TableCell><Badge className={`${u.status === "active" ? "bg-green-50 text-green-600" : "bg-red-50 text-red-600"} border-0 text-[10px]`}>{u.status}</Badge></TableCell>
-                        <TableCell className="text-xs text-gray-500">{new Date(u.createdAt || "").toLocaleDateString("ar-SY")}</TableCell>
-                        <TableCell><Button size="sm" variant="outline" className="rounded-xl h-8 text-xs">إدارة</Button></TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-[#1A1A2E]">إدارة المستخدمين</h2>
+                <Badge variant="outline" className="bg-white">{users?.length ?? 0} مستخدم إجمالي</Badge>
               </div>
+
+              <Tabs defaultValue="all" className="space-y-6">
+                <TabsList className="bg-white border border-[#E5E5DF] p-1 h-auto rounded-2xl">
+                  <TabsTrigger value="all" className="rounded-xl px-6 py-2 text-xs font-bold data-[state=active]:bg-[#0D5D48] data-[state=active]:text-white">الكل</TabsTrigger>
+                  <TabsTrigger value="sellers" className="rounded-xl px-6 py-2 text-xs font-bold data-[state=active]:bg-[#0D5D48] data-[state=active]:text-white">البائعون</TabsTrigger>
+                  <TabsTrigger value="buyers" className="rounded-xl px-6 py-2 text-xs font-bold data-[state=active]:bg-[#0D5D48] data-[state=active]:text-white">المشترون</TabsTrigger>
+                </TabsList>
+
+                {["all", "sellers", "buyers"].map((type) => (
+                  <TabsContent key={type} value={type}>
+                    <div className="bg-white rounded-2xl shadow-xl border border-[#E5E5DF]/50 overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-gray-50">
+                            <TableHead className="text-right">المستخدم</TableHead>
+                            <TableHead className="text-right">الدور</TableHead>
+                            <TableHead className="text-right">الحالة</TableHead>
+                            <TableHead className="text-right">تاريخ الانضمام</TableHead>
+                            <TableHead className="text-right">إجراءات</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {users?.filter((u: any) => {
+                            if (type === "sellers") return u.role === "seller";
+                            if (type === "buyers") return u.role === "user";
+                            return true;
+                          }).map((u: any) => (
+                            <TableRow key={u.id} className="hover:bg-gray-50/50">
+                              <TableCell>
+                                <div className="flex items-center gap-3">
+                                  <img src={u.avatar ?? `https://api.dicebear.com/7.x/initials/svg?seed=${u.name}`} alt="" className="w-10 h-10 rounded-2xl object-cover" />
+                                  <div><p className="font-bold text-sm text-[#1A1A2E]">{u.name}</p><p className="text-[10px] text-gray-500">{u.email}</p></div>
+                                </div>
+                              </TableCell>
+                              <TableCell><Badge variant="secondary" className="bg-blue-50 text-blue-600 border-0 text-[10px]">{u.role}</Badge></TableCell>
+                              <TableCell><Badge className={`${u.status === "active" ? "bg-green-50 text-green-600" : "bg-red-50 text-red-600"} border-0 text-[10px]`}>{u.status}</Badge></TableCell>
+                              <TableCell className="text-xs text-gray-500">{new Date(u.createdAt || "").toLocaleDateString("ar-SY")}</TableCell>
+                              <TableCell>
+                                <div className="flex gap-2">
+                                    <Button 
+                                      onClick={() => {
+                                        setSelectedUser(u);
+                                        setIsBalanceModalOpen(true);
+                                      }}
+                                      size="sm" variant="outline" className="rounded-xl h-8 text-xs border-[#0D5D48] text-[#0D5D48]">تعديل الرصيد</Button>
+                                    
+                                    {u.role !== "admin" && (
+                                      <Button 
+                                        onClick={() => promoteToAdmin.mutate({ userId: u.id })}
+                                        size="sm" variant="outline" className="rounded-xl h-8 text-xs border-amber-500 text-amber-600 hover:bg-amber-50">ترقية لمدير</Button>
+                                    )}
+                                    
+                                    <Button size="sm" variant="outline" className="rounded-xl h-8 text-xs">إدارة</Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </TabsContent>
+                ))}
+              </Tabs>
             </div>
+
+              {/* Balance Modal */}
+              <div className={`${isBalanceModalOpen ? 'fixed' : 'hidden'} inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm`}>
+                <div className="bg-white rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl">
+                   <h3 className="text-xl font-black text-[#1A1A2E] mb-6">تعديل رصيد: {selectedUser?.name}</h3>
+                   <div className="space-y-4">
+                      <div>
+                         <label className="text-xs font-bold text-gray-400 mb-1.5 block">المبلغ (سالب للخصم، موجب للإضافة)</label>
+                         <input 
+                           type="number" 
+                           value={balanceAmount}
+                           onChange={(e) => setBalanceAmount(e.target.value)}
+                           placeholder="مثال: 5000 أو -2000"
+                           className="w-full h-12 bg-gray-50 border-gray-200 rounded-xl px-4 text-sm font-bold focus:ring-2 focus:ring-[#0D5D48] outline-none"
+                         />
+                      </div>
+                      <div>
+                         <label className="text-xs font-bold text-gray-400 mb-1.5 block">سبب التعديل (ملاحظة)</label>
+                         <input 
+                           type="text" 
+                           value={adjustNote}
+                           onChange={(e) => setAdjustNote(e.target.value)}
+                           placeholder="شحن يدوي عبر الشام كاش"
+                           className="w-full h-12 bg-gray-50 border-gray-200 rounded-xl px-4 text-sm focus:ring-2 focus:ring-[#0D5D48] outline-none"
+                         />
+                      </div>
+                   </div>
+                   <div className="flex gap-3 mt-8">
+                      <Button 
+                        disabled={adjustBalance.isPending}
+                        onClick={() => adjustBalance.mutate({ userId: selectedUser.id, amount: balanceAmount, description: adjustNote })}
+                        className="flex-1 bg-[#0D5D48] rounded-xl h-12 font-bold"
+                      >
+                        {adjustBalance.isPending ? "جاري الحفظ..." : "حفظ التغييرات"}
+                      </Button>
+                      <Button 
+                        variant="ghost"
+                        onClick={() => setIsBalanceModalOpen(false)}
+                        className="flex-1 h-12 rounded-xl text-gray-400"
+                      >
+                        إلغاء
+                      </Button>
+                  </div>
+                </div>
+              </div>
           )}
 
           {activeTab === "services" && (
@@ -226,13 +346,25 @@ export default function Admin() {
                 <Table>
                   <TableHeader><TableRow className="bg-gray-50"><TableHead className="text-right">الخدمة</TableHead><TableHead className="text-right">البائع</TableHead><TableHead className="text-right">السعر</TableHead><TableHead className="text-right">الحالة</TableHead><TableHead className="text-right">إجراءات</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {pendingServices?.map((service) => (
+                    {pendingServices?.map((service: any) => (
                       <TableRow key={service.id}>
                         <TableCell><p className="font-bold text-sm line-clamp-1">{service.title}</p></TableCell>
                         <TableCell className="text-sm font-medium">{service.sellerName}</TableCell>
                         <TableCell className="text-sm font-black text-[#0D5D48]">{Number(service.price).toLocaleString()} ل.س</TableCell>
-                        <TableCell><Badge variant="secondary" className="text-[10px]">{service.status}</Badge></TableCell>
-                        <TableCell><div className="flex gap-2"><Button onClick={() => approveService.mutate({ id: service.id })} size="sm" className="bg-green-600 rounded-lg h-8 px-3 text-xs">قبول</Button><Button onClick={() => rejectService.mutate({ id: service.id })} variant="destructive" size="sm" className="rounded-lg h-8 px-3 text-xs">رفض</Button></div></TableCell>
+                        <TableCell>
+                           <Badge className={`${service.status === 'active' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'} border-0 text-[10px]`}>
+                              {service.status === 'active' ? 'نشط' : 'معطل/مرفوض'}
+                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                           <div className="flex gap-2">
+                             {service.status !== 'active' ? (
+                               <Button onClick={() => approveService.mutate({ id: service.id })} size="sm" className="bg-green-600 rounded-lg h-8 px-3 text-xs">تفعيل</Button>
+                             ) : (
+                               <Button onClick={() => rejectService.mutate({ id: service.id })} variant="destructive" size="sm" className="rounded-lg h-8 px-3 text-xs">تعطيل</Button>
+                             )}
+                           </div>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -256,7 +388,7 @@ export default function Admin() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {withdrawals?.map((w) => (
+                    {withdrawals?.map((w: any) => (
                       <TableRow key={w.id}>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -296,7 +428,7 @@ export default function Admin() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {deposits?.map((d) => (
+                    {deposits?.map((d: any) => (
                       <TableRow key={d.id}>
                         <TableCell><span className="text-sm font-bold">{d.userName}</span></TableCell>
                         <TableCell className="text-sm font-black text-green-600">{Number(d.amount).toLocaleString()} ل.س</TableCell>

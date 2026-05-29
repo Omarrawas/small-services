@@ -31,6 +31,32 @@ export async function getAdminStats() {
     })
     .from(schema.wallets);
 
+  const [depositsRow] = await db
+    .select({
+      total: sql<number>`sum(cast(amount as decimal(10,2)))`,
+    })
+    .from(schema.paymentProofs)
+    .where(eq(schema.paymentProofs.status, "approved"));
+
+  const [withdrawalsRow] = await db
+    .select({
+      total: sql<number>`sum(cast(amount as decimal(10,2)))`,
+    })
+    .from(schema.withdrawalRequests)
+    .where(eq(schema.withdrawalRequests.status, "approved"));
+
+  const [salesRow] = await db
+    .select({
+      total: sql<number>`sum(cast(total_amount as decimal(10,2)))`,
+    })
+    .from(schema.orders)
+    .where(eq(schema.orders.status, "completed"));
+
+  const [pendingDeposits] = await db
+     .select({ count: count() })
+     .from(schema.paymentProofs)
+     .where(eq(schema.paymentProofs.status, "pending"));
+
   return {
     users: usersCount?.total ?? 0,
     services: servicesCount?.total ?? 0,
@@ -38,6 +64,10 @@ export async function getAdminStats() {
     disputes: disputesCount?.total ?? 0,
     completionRate,
     totalWalletBalance: walletRow?.total ?? 0,
+    totalDeposited: depositsRow?.total ?? 0,
+    totalWithdrawn: withdrawalsRow?.total ?? 0,
+    totalSales: salesRow?.total ?? 0,
+    pendingDepositsCount: pendingDeposits?.count ?? 0,
   };
 }
 
@@ -125,4 +155,11 @@ export async function listWithdrawalRequests() {
     .from(schema.withdrawalRequests)
     .innerJoin(schema.users, eq(schema.users.id, schema.withdrawalRequests.userId))
     .orderBy(desc(schema.withdrawalRequests.createdAt));
+}
+
+export async function promoteToAdmin(userId: number) {
+  await getDb()
+    .update(schema.users)
+    .set({ role: "admin" })
+    .where(eq(schema.users.id, userId));
 }

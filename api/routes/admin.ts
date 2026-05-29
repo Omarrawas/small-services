@@ -8,11 +8,13 @@ import {
   rejectService,
   listAllOrders,
   listWithdrawalRequests,
+  promoteToAdmin,
 } from "../queries/admin";
 import {
   listPaymentProofs,
   approvePaymentProof,
   updateWithdrawalRequest,
+  adjustUserBalance,
 } from "../queries/wallet";
 
 export const adminRouter = createRouter({
@@ -66,5 +68,17 @@ export const adminRouter = createRouter({
     }))
     .mutation(async ({ input }) => {
       return updateWithdrawalRequest(input.id, input.status, input.adminNote);
+    }),
+
+  adjustBalance: adminQuery
+    .input(z.object({ userId: z.number().int(), amount: z.string(), description: z.string() }))
+    .mutation(async ({ input }) => {
+      return adjustUserBalance(input.userId, input.amount, input.description);
+    }),
+
+  promoteToAdmin: adminQuery
+    .input(z.object({ userId: z.number().int() }))
+    .mutation(async ({ input }) => {
+      return promoteToAdmin(input.userId);
     }),
 });

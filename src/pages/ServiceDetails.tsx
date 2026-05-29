@@ -17,6 +17,7 @@ export default function ServiceDetails() {
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedExtras, setSelectedExtras] = useState<number[]>([]);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isLowBalanceOpen, setIsLowBalanceOpen] = useState(false);
 
   // Queries
   const { data: service, isLoading, error } = trpc.services.bySlug.useQuery({ slug: slug || "" }, { enabled: !!slug });
@@ -30,7 +31,11 @@ export default function ServiceDetails() {
       navigate("/dashboard?tab=orders");
     },
     onError: (err) => {
-      toast.error(err.message || "فشل في تقديم الطلب");
+      if (err.message.includes("رصيدك غير كافٍ")) {
+        setIsLowBalanceOpen(true);
+      } else {
+        toast.error(err.message || "فشل في تقديم الطلب");
+      }
     }
   });
 
@@ -385,6 +390,34 @@ export default function ServiceDetails() {
       </div>
 
       <Footer />
+
+      {/* Low Balance Modal */}
+      <div className={`${isLowBalanceOpen ? 'fixed' : 'hidden'} inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300`}>
+        <div className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-300">
+           <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-6">
+              <AlertCircle className="w-8 h-8 text-red-500" />
+           </div>
+           <h3 className="text-xl font-black text-[#1A1A2E] mb-2 leading-tight">رصيدك لا يكفي!</h3>
+           <p className="text-gray-500 text-sm leading-relaxed mb-8">
+              رصيدك الحالي أقل من تكلفة الخدمة. يرجى شحن محفظتك للمتابعة وإتمام عملية الشراء.
+           </p>
+           <div className="flex flex-col gap-3">
+              <Button 
+                onClick={() => navigate("/dashboard?tab=wallet&action=deposit")}
+                className="bg-[#0D5D48] hover:bg-[#0A4A3A] h-12 rounded-xl font-bold"
+              >
+                شحن المحفظة الآن
+              </Button>
+              <Button 
+                variant="ghost"
+                onClick={() => setIsLowBalanceOpen(false)}
+                className="h-12 rounded-xl font-bold text-gray-400 hover:text-gray-600"
+              >
+                إلغاء
+              </Button>
+           </div>
+        </div>
+      </div>
 
       {seller && (
         <ChatDialog 

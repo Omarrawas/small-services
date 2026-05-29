@@ -142,3 +142,24 @@ export async function approvePaymentProof(id: number, userId: number, amount: st
     .set({ status: "approved", reviewedAt: new Date() })
     .where(eq(schema.paymentProofs.id, id));
 }
+
+export async function adjustUserBalance(userId: number, amount: string, description: string) {
+  const wallet = await ensureWallet(userId);
+  const currentBalance = parseFloat(wallet.balance ?? "0");
+  const adjustAmount = parseFloat(amount);
+  const newBalance = (currentBalance + adjustAmount).toFixed(2);
+
+  await getDb()
+    .update(schema.wallets)
+    .set({ balance: newBalance })
+    .where(eq(schema.wallets.userId, userId));
+
+  await getDb().insert(schema.walletTransactions).values({
+    walletId: wallet.id,
+    type: adjustAmount >= 0 ? "deposit" : "withdrawal",
+    amount: String(Math.abs(adjustAmount)),
+    balanceAfter: newBalance,
+    description: description || "تعديل رصيد يدوي من الإدارة",
+    status: "completed",
+  });
+}

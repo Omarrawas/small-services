@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router";
+import { useState, useEffect } from "react";
+import { Link, useSearchParams } from "react-router";
 import {
   LayoutDashboard, ShoppingBag, Wallet, MessageCircle, Bell, User, Settings,
   ChevronLeft, ArrowUpRight, Eye
@@ -29,7 +29,17 @@ const sidebarItems = [
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [walletAction, setWalletAction] = useState<"deposit" | "withdraw" | null>(null);
+  const [searchParams] = useSearchParams();
   const { user } = useAuth({ redirectOnUnauthenticated: true });
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    const action = searchParams.get("action");
+    
+    if (tab) setActiveTab(tab);
+    if (action === "deposit") setWalletAction("deposit");
+    if (action === "withdraw") setWalletAction("withdraw");
+  }, [searchParams]);
 
   // Data fetching
   const { data: walletData } = trpc.wallet.balance.useQuery(undefined, { enabled: !!user });
