@@ -100,15 +100,18 @@ export default function Login() {
         toast.error(`تم تسجيل الدخول ولكن فشل الاتصال بالخادم: ${apiErr?.message || "خطأ غير معروف"}`);
       }
     } catch (error: any) {
-      const msg =
-        error?.code === "auth/email-already-in-use"
-          ? "البريد الإلكتروني مستخدم مسبقاً"
-          : error?.code === "auth/invalid-credential"
-            ? "البريد الإلكتروني أو كلمة المرور غير صحيحة"
-            : error?.code === "auth/weak-password"
-              ? "كلمة المرور يجب أن تكون 6 أحرف على الأقل"
-              : error?.message || "فشل تسجيل الدخول";
-      toast.error(msg);
+      console.error("[Login] Email Auth Error:", error.code, error.message);
+      let errorMsg = "فشل التحقق من البيانات";
+      if (error.code === "auth/user-not-found") errorMsg = "المستخدم غير موجود";
+      else if (error.code === "auth/wrong-password") errorMsg = "كلمة المرور خاطئة";
+      else if (error.code === "auth/invalid-email") errorMsg = "البريد الإلكتروني غير صالح";
+      else if (error.code === "auth/operation-not-allowed") errorMsg = "تسجيل الدخول بالإيميل غير مفعل في Firebase";
+      else if (error.code === "auth/email-already-in-use") errorMsg = "البريد الإلكتروني مستخدم مسبقاً";
+      else if (error.code === "auth/invalid-credential") errorMsg = "البريد الإلكتروني أو كلمة المرور غير صحيحة";
+      else if (error.code === "auth/weak-password") errorMsg = "كلمة المرور يجب أن تكون 6 أحرف على الأقل";
+      else errorMsg = error?.message || "فشل تسجيل الدخول";
+
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
