@@ -11,28 +11,36 @@ let instance: any;
 export function getDb() {
   if (!instance) {
     const url = env.databaseUrl;
+    console.log("[DB] Initializing connection...");
+    
     if (!url) {
-      throw new Error("DATABASE_URL is not defined in environment variables.");
+      console.error("[DB] Missing DATABASE_URL!");
+      throw new Error("DATABASE_URL is missing.");
     }
     
-    // TiDB Cloud Serverless requires explicit SSL configuration for most drivers
-    const poolConnection = mysql.createPool({
-      uri: url,
-      ssl: {
-        // This is necessary for TiDB Cloud Serverless to allow the connection
-        rejectUnauthorized: true,
-      },
-      // Ensure the connection doesn't time out too quickly
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0,
-      connectTimeout: 5000, // 5 seconds timeout for connection
-    });
-    
-    instance = drizzle(poolConnection, {
-      mode: "default",
-      schema: fullSchema,
-    });
+    try {
+      const poolConnection = mysql.createPool({
+        uri: url,
+        ssl: {
+          minVersion: 'TLSv1.2',
+          rejectUnauthorized: false, // More permissive for Vercel environments
+        },
+        waitForConnections: true,
+        connectionLimit: 1, // Single connection for serverless to avoid overhead
+        queueLimit: 0,
+        connectTimeout: 10000, 
+        enableKeepAlive: true,
+      });
+      
+      instance = drizzle(poolConnection, {
+        mode: "default",
+        schema: fullSchema,
+      });
+      console.log("[DB] Drizzle instance created.");
+    } catch (err: any) {
+      console.error("[DB] Failed to create instance:", err.message);
+      throw err;
+    }
   }
   return instance;
 }
