@@ -1,39 +1,35 @@
 import { Hono } from "hono";
 import { handle } from "hono/vercel";
+import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
+import { appRouter } from "./router";
+import { createContext } from "./context";
 
 const app = new Hono().basePath("/api");
 
 // Health check
-app.get("/health", (c) => c.json({ status: "ok", message: "Hono is running on Vercel!", time: new Date().toISOString() }));
+app.get("/health", (c) => c.json({ status: "ok", message: "Hono is healthy!" }));
 
 // Diagnose
 app.get("/diagnose", async (c) => {
-  return c.json({ 
-    env: { node: process.version, hasDb: !!process.env.DATABASE_URL } 
-  });
+  return c.json({ info: "Diagnosis route active" });
 });
 
-// tRPC lazy loader
+// TRPC Handler
 app.all("/trpc/*", async (c) => {
   try {
-    const [{ fetchRequestHandler }, { appRouter }, { createContext }] = await Promise.all([
-      import("@trpc/server/adapters/fetch"),
-      import("./router"),
-      import("./context")
-    ]);
-
-    return fetchRequestHandler({
+    return await fetchRequestHandler({
       endpoint: "/api/trpc",
       req: c.req.raw,
       router: appRouter,
-      createContext: (opts) => createContext(opts),
+      createContext,
     });
   } catch (err: any) {
-    return c.json({ error: "Init Error", message: err.message }, 500);
+    console.error("[TRPC] Error:", err.message);
+    return c.json({ error: "Internal Server Error", details: err.message }, 500);
   }
 });
 
-// IMPORTANT: Vercel named exports for Web Standard API
+// Standalone exports for Vercel Web Standard
 export const GET = handle(app);
 export const POST = handle(app);
 export const PUT = handle(app);
