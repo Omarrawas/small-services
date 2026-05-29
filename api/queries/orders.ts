@@ -69,32 +69,33 @@ export async function createOrder(data: {
   requirements?: string;
   deliveryDate?: Date;
 }) {
+  console.log("[Orders] Entering createOrder query function...");
   const db = getDb();
   const orderNumber = generateOrderNumber();
 
-  console.log("[Orders] Starting transaction for createOrder...");
+  console.log("[Orders] Starting transaction for:", orderNumber);
   return await db.transaction(async (tx: any) => {
-    console.log("[Orders] Transaction started. Ensuring wallet for buyer:", data.buyerId);
+    console.log("[Orders] Inside transaction. Buyer ID:", data.buyerId);
     // 1. Check buyer balance
     const wallet = await ensureWallet(data.buyerId, tx);
-    console.log("[Orders] Wallet found/created:", wallet.id, "Balance:", wallet.balance);
+    console.log("[Orders] Buyer wallet balance:", wallet.balance);
     const balance = parseFloat(wallet.balance ?? "0");
     const total = parseFloat(data.totalAmount);
 
     if (balance < total) {
-      console.log("[Orders] Insufficient balance. Required:", total, "Available:", balance);
+      console.log("[Orders] Insufficient balance. Total:", total, "Balance:", balance);
       throw new Error("رصيدك غير كافٍ لإتمام هذا الطلب. يرجى شحن محفظتك أولاً.");
     }
 
     // 2. Deduct balance
-    console.log("[Orders] Deducting balance...");
     const newBalance = (balance - total).toFixed(2);
+    console.log("[Orders] Deducting balance. New balance will be:", newBalance);
     await tx.update(schema.wallets)
       .set({ balance: newBalance })
       .where(eq(schema.wallets.id, wallet.id));
 
     // 3. Create order
-    console.log("[Orders] Inserting order...");
+    console.log("[Orders] Inserting order record...");
     const [result] = await tx.insert(schema.orders).values({ 
       ...data, 
       orderNumber,
@@ -102,10 +103,10 @@ export async function createOrder(data: {
     });
     
     const orderId = result.insertId;
-    console.log("[Orders] Order created with ID:", orderId);
+    console.log("[Orders] Order inserted. ID:", orderId);
 
     // 4. Log transaction
-    console.log("[Orders] Logging wallet transaction...");
+    console.log("[Orders] Recording wallet transaction log...");
     await tx.insert(schema.walletTransactions).values({
       walletId: wallet.id,
       type: "payment",
@@ -117,7 +118,7 @@ export async function createOrder(data: {
       status: "completed",
     });
 
-    console.log("[Orders] Transaction completed successfully.");
+    console.log("[Orders] Transaction finished successfully.");
     return { id: orderId, orderNumber };
   });
 }

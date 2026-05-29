@@ -29,11 +29,13 @@ export async function upsertUser(data: InsertUser) {
     updateSet.role = "admin";
   }
 
+  console.log("[Users] Upserting user:", data.unionId);
   await getDb()
     .insert(schema.users)
     .values(values)
     .onDuplicateKeyUpdate({ set: updateSet });
     
+  console.log("[Users] Upsert insertion done. Fetching user...");
   return findUserByUnionId(data.unionId);
 }
 

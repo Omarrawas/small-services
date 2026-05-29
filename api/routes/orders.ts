@@ -36,7 +36,10 @@ export const ordersRouter = createRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      console.log("[Orders Router] Starting create mutation. Input:", input.serviceSlug, "User ID:", ctx.user.id);
       const service = await findServiceBySlug(input.serviceSlug);
+      console.log("[Orders Router] Service found:", service?.id);
+      
       if (!service)
         throw new TRPCError({ code: "NOT_FOUND", message: "الخدمة غير موجودة" });
       if (service.status !== "active")
@@ -49,18 +52,26 @@ export const ordersRouter = createRouter({
       const deliveryDate = new Date();
       deliveryDate.setDate(deliveryDate.getDate() + (service.deliveryTime ?? 3));
 
-      await createOrder({
-        buyerId: ctx.user.id,
-        sellerId: service.sellerId,
-        serviceId: service.id,
-        extras: input.extras as any,
-        totalAmount,
-        requirements: input.requirements,
-        deliveryDate,
-      });
-
-
-      return { success: true };
+      try {
+        console.log("[Orders Router] Proceeding to createOrder query with total:", totalAmount);
+        const result = await createOrder({
+          buyerId: ctx.user.id,
+          sellerId: service.sellerId,
+          serviceId: service.id,
+          extras: input.extras as any,
+          totalAmount,
+          requirements: input.requirements,
+          deliveryDate,
+        });
+        console.log("[Orders Router] createOrder query finished. Result:", result);
+        return { success: true };
+      } catch (err: any) {
+        console.error("[Orders Router] Error in createOrder:", err.message);
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: err.message || "فشل في إتمام عملية الشراء",
+        });
+      }
     }),
 
   updateStatus: authedQuery

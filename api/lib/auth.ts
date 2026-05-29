@@ -31,14 +31,30 @@ export async function authenticateRequest(req: Request): Promise<AuthedUser | nu
     const email = decodedToken.email;
     const isAdmin = email && ADMIN_EMAILS.includes(email);
 
-    // RETURN FIREBASE USER DIRECTLY - Avoid DB sync for now to prevent Vercel crashes
-    return {
-      id: decodedToken.uid, // Use UID as string ID
+    // Sync with DB to get/create numeric ID
+    console.log("[Auth] Syncing user with DB. UID:", decodedToken.uid);
+    const { upsertUser } = await import("../queries/users");
+    const dbUser = await upsertUser({
       unionId: decodedToken.uid,
       email: email,
       name: decodedToken.name || email?.split("@")[0] || "User",
       avatar: decodedToken.picture,
       role: isAdmin ? "admin" : "buyer",
+    });
+    console.log("[Auth] DB Sync completed. DB ID:", dbUser?.id);
+
+    if (!dbUser) {
+       console.error("[Auth] DB Sync failed for UID:", decodedToken.uid);
+       return null;
+    }
+
+    return {
+      id: dbUser.id as any, // Numeric ID from DB
+      unionId: dbUser.unionId,
+      email: dbUser.email ?? undefined,
+      name: dbUser.name ?? undefined,
+      avatar: dbUser.avatar ?? undefined,
+      role: dbUser.role as any,
     };
 
   } catch (error: any) {
