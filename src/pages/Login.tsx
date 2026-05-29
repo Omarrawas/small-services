@@ -10,6 +10,7 @@ import {
   GoogleAuthProvider,
   signInWithRedirect,
   getRedirectResult,
+  onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
 } from "firebase/auth";
@@ -29,38 +30,40 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Handle redirect result on mount
+  // Handle auth state changes and redirect results
   useEffect(() => {
-    console.log("Login page mounted, checking for redirect result...");
-    const checkRedirect = async () => {
-      try {
-        // Find if we are actually coming back from a redirect
-        const result = await getRedirectResult(auth);
+    console.log("Login page mounted, listening for auth state...");
+
+    // 1. Process result if coming back from redirect
+    getRedirectResult(auth).catch(err => {
+      console.error("error processing redirect result", err);
+    });
+
+    // 2. Listen for user state (works for both redirect return and session restore)
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        console.log("Auth State Changed: User detected!", user.email);
+        setLoading(true);
+        toast.loading("جاري مزامنة بياناتك...");
         
-        if (result) {
-          console.log("Redirect result found for:", result.user.email);
-          setLoading(true);
-          toast.loading("تم العودة من غوغل، جاري التحقق من الهوية...");
-          
+        try {
           await utils.invalidate();
           const me = await utils.client.auth.me.query();
-          
           if (me) {
-            toast.success("تم تسجيل الدخول بنجاح");
+            toast.success(`مرحباً ${me.name || "بك"}`);
             navigate("/");
-          } else {
-            toast.error("فشل التعرف على المستخدم في قاعدة البيانات");
           }
+        } catch (err: any) {
+          console.error("Sync failed:", err);
+          toast.error("فشل مزامنة البيانات مع الخادم");
+        } finally {
+          setLoading(false);
+          toast.dismiss();
         }
-      } catch (error: any) {
-        console.error("Redirect check failed:", error);
-        toast.error(`فشل استكمال تسجيل الدخول: ${error.message || "خطأ غير معروف"}`);
-      } finally {
-        setLoading(false);
-        toast.dismiss();
       }
-    };
-    checkRedirect();
+    });
+
+    return () => unsubscribe();
   }, [auth, utils, navigate]);
 
   const switchMode = (newMode: Mode) => {
