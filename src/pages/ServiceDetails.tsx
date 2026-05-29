@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useParams, Link } from "react-router";
-import { Star, Clock, Shield, Check, ChevronLeft, AlertCircle } from "lucide-react";
+import { useParams, Link, useNavigate } from "react-router";
+import { Star, Clock, Shield, Check, ChevronLeft, AlertCircle, RefreshCcw, CheckCircle, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,6 +13,7 @@ import { ChatDialog } from "@/components/chat/ChatDialog";
 
 export default function ServiceDetails() {
   const { slug } = useParams<{ slug: string }>();
+  const navigate = useNavigate();
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedExtras, setSelectedExtras] = useState<number[]>([]);
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -26,7 +27,7 @@ export default function ServiceDetails() {
   const createOrder = trpc.orders.create.useMutation({
     onSuccess: () => {
       toast.success("تم تقديم طلبك بنجاح!");
-      // Redirect to order page or dashboard
+      navigate("/dashboard?tab=orders");
     },
     onError: (err) => {
       toast.error(err.message || "فشل في تقديم الطلب");
@@ -397,5 +398,3 @@ export default function ServiceDetails() {
     </div>
   );
 }
-
-import { RefreshCcw, CheckCircle, MessageCircle } from "lucide-react";

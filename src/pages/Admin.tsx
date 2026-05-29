@@ -18,6 +18,7 @@ const sidebarItems = [
   { icon: Package, label: "الخدمات", value: "services" },
   { icon: ShoppingCart, label: "الطلبات", value: "orders" },
   { icon: Wallet, label: "السحوبات", value: "withdrawals" },
+  { icon: CheckCircle, label: "الإيداعات", value: "deposits" },
   { icon: AlertTriangle, label: "النزاعات", value: "disputes" },
 ];
 
@@ -34,6 +35,7 @@ export default function Admin() {
   const { data: pendingServices, isLoading: servicesLoading } = trpc.admin.services.useQuery(undefined, { enabled: activeTab === "dashboard" || activeTab === "services" });
   const { data: recentOrders, isLoading: ordersLoading } = trpc.admin.orders.useQuery(undefined, { enabled: activeTab === "orders" });
   const { data: withdrawals } = trpc.admin.withdrawals.useQuery(undefined, { enabled: activeTab === "withdrawals" });
+  const { data: deposits } = trpc.admin.deposits.useQuery(undefined, { enabled: activeTab === "deposits" });
 
   // Mutations
   const approveService = trpc.admin.approveService.useMutation({
@@ -47,6 +49,21 @@ export default function Admin() {
     onSuccess: () => {
       toast.error("تم رفض الخدمة");
       utils.admin.services.invalidate();
+    }
+  });
+
+  const approveDeposit = trpc.admin.approveDeposit.useMutation({
+    onSuccess: () => {
+      toast.success("تم شحن الرصيد للمستخدم بنجاح");
+      utils.admin.deposits.invalidate();
+      utils.admin.stats.invalidate();
+    }
+  });
+
+  const updateWithdrawal = trpc.admin.updateWithdrawal.useMutation({
+    onSuccess: () => {
+      toast.success("تم تحديث حالة طلب السحب");
+      utils.admin.withdrawals.invalidate();
     }
   });
 
@@ -225,10 +242,84 @@ export default function Admin() {
           )}
 
           {activeTab === "withdrawals" && (
-            <div className="text-center py-32 animate-in zoom-in-95 duration-500">
-              <Wallet className="w-20 h-20 text-gray-200 mx-auto mb-6" />
-              <h3 className="text-2xl font-black text-[#1A1A2E]">طلبات السحب</h3>
-              <p className="text-gray-400 mt-2 max-w-sm mx-auto">لا توجد طلبات سحب معلقة حالياً. سيتم تحديث هذه القائمة فور تلقي أي طلب جديد.</p>
+            <div className="animate-in fade-in slide-in-from-right-4 duration-500">
+              <h2 className="text-2xl font-bold text-[#1A1A2E] mb-6">طلبات السحب</h2>
+              <div className="bg-white rounded-2xl shadow-xl border border-[#E5E5DF]/50 overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="text-right">المستخدم</TableHead>
+                      <TableHead className="text-right">المبلغ</TableHead>
+                      <TableHead className="text-right">الوسيلة</TableHead>
+                      <TableHead className="text-right">الحالة</TableHead>
+                      <TableHead className="text-right">إجراءات</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {withdrawals?.map((w) => (
+                      <TableRow key={w.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                             <img src={w.userAvatar || ""} className="w-8 h-8 rounded-full" />
+                             <span className="text-sm font-bold">{w.userName}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm font-black text-red-600">{Number(w.amount).toLocaleString()} ل.س</TableCell>
+                        <TableCell className="text-xs">{w.method} - {w.accountName} ({w.accountNumber})</TableCell>
+                        <TableCell><Badge variant="outline">{w.status}</Badge></TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button size="sm" className="bg-green-600 h-8 text-[10px]" onClick={() => updateWithdrawal.mutate({ id: w.id, status: "approved" })}>قبول</Button>
+                            <Button size="sm" variant="destructive" className="h-8 text-[10px]" onClick={() => updateWithdrawal.mutate({ id: w.id, status: "rejected" })}>رفض</Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "deposits" && (
+            <div className="animate-in fade-in slide-in-from-right-4 duration-500">
+              <h2 className="text-2xl font-bold text-[#1A1A2E] mb-6">طلبات الإيداع (شحن الرصيد)</h2>
+              <div className="bg-white rounded-2xl shadow-xl border border-[#E5E5DF]/50 overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="text-right">المستخدم</TableHead>
+                      <TableHead className="text-right">المبلغ</TableHead>
+                      <TableHead className="text-right">الوسيلة</TableHead>
+                      <TableHead className="text-right">الرقم المرجعي</TableHead>
+                      <TableHead className="text-right">إجراءات</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {deposits?.map((d) => (
+                      <TableRow key={d.id}>
+                        <TableCell><span className="text-sm font-bold">{d.userName}</span></TableCell>
+                        <TableCell className="text-sm font-black text-green-600">{Number(d.amount).toLocaleString()} ل.س</TableCell>
+                        <TableCell className="text-xs">{d.method} {d.senderPhone && `(${d.senderPhone})`}</TableCell>
+                        <TableCell className="text-xs font-mono">{d.transactionNumber}</TableCell>
+                        <TableCell>
+                          {d.status === "pending" ? (
+                            <Button 
+                              size="sm" 
+                              className="bg-[#0D5D48] h-8 text-[10px]" 
+                              onClick={() => approveDeposit.mutate({ id: d.id, userId: d.userId, amount: d.amount })}
+                            >
+                              تأكيد الشحن
+                            </Button>
+                          ) : (
+                            <Badge className="bg-green-50 text-green-600 border-0">تم القبول</Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           )}
 

@@ -26,7 +26,7 @@ export function getDb() {
           rejectUnauthorized: false, // More permissive for Vercel environments
         },
         waitForConnections: true,
-        connectionLimit: 1, // Single connection for serverless to avoid overhead
+        connectionLimit: 10, // Increased to avoid deadlocks during transactions/batching
         queueLimit: 0,
         connectTimeout: 10000, 
         enableKeepAlive: true,

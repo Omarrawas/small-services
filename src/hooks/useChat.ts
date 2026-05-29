@@ -22,7 +22,7 @@ export function useChat(conversationId?: string) {
 
   // Listen to conversations
   useEffect(() => {
-    if (!user) return;
+    if (!user || !user.unionId) return;
 
     const q = query(
       collection(db, "conversations"),

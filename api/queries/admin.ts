@@ -114,9 +114,13 @@ export async function listWithdrawalRequests() {
       id: schema.withdrawalRequests.id,
       userId: schema.withdrawalRequests.userId,
       amount: schema.withdrawalRequests.amount,
+      method: schema.withdrawalRequests.method,
+      accountNumber: schema.withdrawalRequests.accountNumber,
+      accountName: schema.withdrawalRequests.accountName,
       status: schema.withdrawalRequests.status,
       createdAt: schema.withdrawalRequests.createdAt,
       userName: schema.users.name,
+      userAvatar: schema.users.avatar,
     })
     .from(schema.withdrawalRequests)
     .innerJoin(schema.users, eq(schema.users.id, schema.withdrawalRequests.userId))

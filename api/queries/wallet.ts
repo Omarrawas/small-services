@@ -2,8 +2,9 @@ import { eq, desc } from "drizzle-orm";
 import { getDb } from "./connection";
 import * as schema from "../../db/schema";
 
-export async function getWalletByUserId(userId: number) {
-  const rows = await getDb()
+export async function getWalletByUserId(userId: number, tx?: any) {
+  const db = tx || getDb();
+  const rows = await db
     .select()
     .from(schema.wallets)
     .where(eq(schema.wallets.userId, userId))
@@ -11,11 +12,12 @@ export async function getWalletByUserId(userId: number) {
   return rows.at(0);
 }
 
-export async function ensureWallet(userId: number) {
-  const existing = await getWalletByUserId(userId);
+export async function ensureWallet(userId: number, tx?: any) {
+  const existing = await getWalletByUserId(userId, tx);
   if (existing) return existing;
-  await getDb().insert(schema.wallets).values({ userId, balance: "0" });
-  return (await getWalletByUserId(userId))!;
+  const db = tx || getDb();
+  await db.insert(schema.wallets).values({ userId, balance: "0" });
+  return (await getWalletByUserId(userId, tx))!;
 }
 
 export async function getWalletTransactions(userId: number, limit = 30) {

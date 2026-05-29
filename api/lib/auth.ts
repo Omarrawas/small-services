@@ -1,8 +1,7 @@
 import { auth as adminAuth } from "./firebase-admin";
-import { upsertUser } from "../queries/users";
 
 export interface AuthedUser {
-  id?: number;
+  id?: string;
   unionId: string;
   name?: string;
   email?: string;
@@ -10,10 +9,8 @@ export interface AuthedUser {
   role: "buyer" | "seller" | "admin" | "moderator";
 }
 
-// Update this list with emails that should have admin access
 const ADMIN_EMAILS = [
   "omar.rawas17@gmail.com",
-  "lizasister6@gmail.com", // Keeping previous one just in case
 ];
 
 export async function authenticateRequest(req: Request): Promise<AuthedUser | null> {
@@ -23,34 +20,26 @@ export async function authenticateRequest(req: Request): Promise<AuthedUser | nu
   }
 
   const idToken = authHeader.split("Bearer ")[1];
-  
+
   try {
-    if (!adminAuth) return null;
+    if (!adminAuth) {
+      console.error("[Auth] Firebase Admin not initialized");
+      return null;
+    }
 
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const email = decodedToken.email;
     const isAdmin = email && ADMIN_EMAILS.includes(email);
-    
-    // Try to sync with DB, but don't crash if DB fails
-    try {
-      const user = await upsertUser({
-        unionId: decodedToken.uid,
-        email: email,
-        name: decodedToken.name || email?.split("@")[0] || "User",
-        avatar: decodedToken.picture,
-        role: isAdmin ? "admin" : "buyer", // Set admin role if in list
-        lastSignInAt: new Date(),
-      });
-      return user;
-    } catch (dbErr: any) {
-      console.warn("[Auth] DB Sync failed, using Firebase fallback:", dbErr.message);
-      return {
-        unionId: decodedToken.uid,
-        email: email,
-        name: decodedToken.name || "User",
-        role: isAdmin ? "admin" : "buyer",
-      };
-    }
+
+    // RETURN FIREBASE USER DIRECTLY - Avoid DB sync for now to prevent Vercel crashes
+    return {
+      id: decodedToken.uid, // Use UID as string ID
+      unionId: decodedToken.uid,
+      email: email,
+      name: decodedToken.name || email?.split("@")[0] || "User",
+      avatar: decodedToken.picture,
+      role: isAdmin ? "admin" : "buyer",
+    };
 
   } catch (error: any) {
     console.error("[Auth] Token verification failed:", error.message);

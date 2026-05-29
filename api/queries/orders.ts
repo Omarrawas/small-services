@@ -2,6 +2,7 @@ import { eq, and, desc, count } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getDb } from "./connection";
 import * as schema from "../../db/schema";
+import { ensureWallet } from "./wallet";
 
 function generateOrderNumber() {
   return `ORD-${new Date().getFullYear()}-${nanoid(6).toUpperCase()}`;
@@ -68,8 +69,57 @@ export async function createOrder(data: {
   requirements?: string;
   deliveryDate?: Date;
 }) {
+  const db = getDb();
   const orderNumber = generateOrderNumber();
-  await getDb().insert(schema.orders).values({ ...data, orderNumber });
+
+  console.log("[Orders] Starting transaction for createOrder...");
+  return await db.transaction(async (tx: any) => {
+    console.log("[Orders] Transaction started. Ensuring wallet for buyer:", data.buyerId);
+    // 1. Check buyer balance
+    const wallet = await ensureWallet(data.buyerId, tx);
+    console.log("[Orders] Wallet found/created:", wallet.id, "Balance:", wallet.balance);
+    const balance = parseFloat(wallet.balance ?? "0");
+    const total = parseFloat(data.totalAmount);
+
+    if (balance < total) {
+      console.log("[Orders] Insufficient balance. Required:", total, "Available:", balance);
+      throw new Error("رصيدك غير كافٍ لإتمام هذا الطلب. يرجى شحن محفظتك أولاً.");
+    }
+
+    // 2. Deduct balance
+    console.log("[Orders] Deducting balance...");
+    const newBalance = (balance - total).toFixed(2);
+    await tx.update(schema.wallets)
+      .set({ balance: newBalance })
+      .where(eq(schema.wallets.id, wallet.id));
+
+    // 3. Create order
+    console.log("[Orders] Inserting order...");
+    const [result] = await tx.insert(schema.orders).values({ 
+      ...data, 
+      orderNumber,
+      status: "pending" 
+    });
+    
+    const orderId = result.insertId;
+    console.log("[Orders] Order created with ID:", orderId);
+
+    // 4. Log transaction
+    console.log("[Orders] Logging wallet transaction...");
+    await tx.insert(schema.walletTransactions).values({
+      walletId: wallet.id,
+      type: "payment",
+      amount: data.totalAmount,
+      balanceAfter: newBalance,
+      referenceType: "order",
+      referenceId: orderId,
+      description: `شراء خدمة: ${orderNumber}`,
+      status: "completed",
+    });
+
+    console.log("[Orders] Transaction completed successfully.");
+    return { id: orderId, orderNumber };
+  });
 }
 
 export async function updateOrderStatus(
@@ -77,15 +127,44 @@ export async function updateOrderStatus(
   userId: number,
   status: typeof schema.orders.$inferInsert.status,
 ) {
-  await getDb()
-    .update(schema.orders)
-    .set({ status, updatedAt: new Date() })
-    .where(
-      and(
-        eq(schema.orders.id, id),
-        // Either buyer or seller can update
-      ),
-    );
+  const db = getDb();
+  
+  return await db.transaction(async (tx: any) => {
+    // 1. Get current order
+    const [order] = await tx.select().from(schema.orders).where(eq(schema.orders.id, id)).limit(1);
+    if (!order) throw new Error("الطلب غير موجود");
+
+    // 2. Prevent redundant completion or double payment
+    if (order.status === "completed" && status === "completed") return;
+
+    // 3. Update status
+    await tx.update(schema.orders)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(schema.orders.id, id));
+
+    // 4. If status is "completed", transfer money to seller
+    if (status === "completed") {
+      const sellerWallet = await ensureWallet(order.sellerId, tx);
+      const currentBalance = parseFloat(sellerWallet.balance ?? "0");
+      const amountToAdd = parseFloat(order.totalAmount);
+      const newBalance = (currentBalance + amountToAdd).toFixed(2);
+
+      await tx.update(schema.wallets)
+        .set({ balance: newBalance })
+        .where(eq(schema.wallets.id, sellerWallet.id));
+
+      await tx.insert(schema.walletTransactions).values({
+        walletId: sellerWallet.id,
+        type: "escrow_release",
+        amount: order.totalAmount,
+        balanceAfter: newBalance,
+        referenceType: "order",
+        referenceId: order.id,
+        description: `أرباح الطلب: ${order.orderNumber}`,
+        status: "completed",
+      });
+    }
+  });
 }
 
 export async function adminListOrders(limit = 50) {

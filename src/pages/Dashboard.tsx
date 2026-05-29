@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import {
   LayoutDashboard, ShoppingBag, Wallet, MessageCircle, Bell, User, Settings,
-  ChevronLeft, Star, ArrowUpRight, Eye, Package
+  ChevronLeft, ArrowUpRight, Eye
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/providers/trpc";
 
 import { useChat } from "@/hooks/useChat";
+import { WalletModals } from "@/components/dashboard/WalletModals";
 
 const sidebarItems = [
 
@@ -27,16 +28,17 @@ const sidebarItems = [
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [walletAction, setWalletAction] = useState<"deposit" | "withdraw" | null>(null);
   const { user } = useAuth({ redirectOnUnauthenticated: true });
 
   // Data fetching
   const { data: walletData } = trpc.wallet.balance.useQuery(undefined, { enabled: !!user });
   const { data: ordersData } = trpc.orders.list.useQuery({ role: "buyer" }, { enabled: !!user });
   const { data: transactionsData } = trpc.wallet.transactions.useQuery({ limit: 10 }, { enabled: !!user });
-  const { conversations, loading: chatLoading } = useChat();
+  const { conversations } = useChat();
   const balance = parseFloat(walletData?.balance ?? "0");
   const orders = ordersData ?? [];
-  const activeOrders = orders.filter((o) => o.status === "in_progress" || o.status === "pending" || o.status === "revision");
+  const activeOrders = orders.filter((o: any) => o.status === "in_progress" || o.status === "pending" || o.status === "revision");
   const walletTransactions = transactionsData ?? [];
 
 
@@ -110,7 +112,7 @@ export default function Dashboard() {
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${stat.color}`}>
                         <stat.icon className="w-5 h-5" />
                       </div>
-                      {stat.trend > 0 && (
+                      {typeof stat.trend === 'number' && stat.trend > 0 && (
                         <span className="text-xs text-green-600 flex items-center gap-0.5 font-medium">
                           <ArrowUpRight className="w-3 h-3" /> +{stat.trend}%
                         </span>
@@ -128,10 +130,10 @@ export default function Dashboard() {
               <div className="bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.04)] border border-[#E5E5DF]/50 overflow-hidden mb-8">
                 {activeOrders.length > 0 ? (
                   <div className="divide-y divide-gray-100">
-                    {activeOrders.map((order) => {
+                    {activeOrders.map((order: any) => {
                       const colors = statusColors[order.status as keyof typeof statusColors] || statusColors.pending;
                       return (
-                        <div key={order.id} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-gray-50 transition-colors">
+                        <div key={`active-order-${order.id}`} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-gray-50 transition-colors">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
                               <span className="text-[10px] font-mono text-gray-400">{order.orderNumber}</span>
@@ -182,11 +184,11 @@ export default function Dashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {orders.length > 0 ? orders.map((order) => {
+                    {orders.length > 0 ? orders.map((order: any) => {
                       const colors = statusColors[order.status as keyof typeof statusColors] || statusColors.pending;
                       return (
-                        <TableRow key={order.id} className="hover:bg-gray-50/50">
-                          <TableCell className="text-xs font-mono">{order.orderNumber}</TableCell>
+                        <TableRow key={`order-${order.id}`} className="hover:bg-gray-50/50">
+  <TableCell className="text-xs font-mono">{order.orderNumber}</TableCell>
                           <TableCell className="text-sm font-medium">{order.serviceTitle}</TableCell>
                           <TableCell>
                             <Badge className={`${colors.bg} ${colors.text} border-0 text-[10px] px-2 py-0`}>
@@ -223,14 +225,30 @@ export default function Dashboard() {
                   <span className="text-xl font-medium opacity-80">ل.س</span>
                 </div>
                 <div className="flex items-center justify-center gap-4">
-                  <Button className="bg-white text-[#0D5D48] hover:bg-gray-100 rounded-2xl px-8 h-12 font-bold shadow-lg shadow-black/10">
+                  <Button 
+                    onClick={() => setWalletAction("deposit")}
+                    className="bg-white text-[#0D5D48] hover:bg-gray-100 rounded-2xl px-8 h-12 font-bold shadow-lg shadow-black/10 transition-transform active:scale-95"
+                  >
                     إيداع رصيد
                   </Button>
-                  <Button variant="outline" className="border-white/20 text-white hover:bg-white/10 rounded-2xl px-8 h-12 font-bold backdrop-blur-sm">
+                  <Button 
+                    onClick={() => setWalletAction("withdraw")}
+                    variant="outline" 
+                    className="border-white/20 text-white hover:bg-white/10 rounded-2xl px-8 h-12 font-bold backdrop-blur-sm transition-transform active:scale-95"
+                  >
                     طلب سحب
                   </Button>
                 </div>
               </div>
+
+              <WalletModals 
+                type={walletAction} 
+                onClose={() => setWalletAction(null)}
+                onSuccess={() => {
+                  // The data will be refetched by TRPC automatically or we can manually invalidate
+                }}
+                balance={balance}
+              />
 
               <h3 className="text-lg font-bold text-[#1A1A2E] mb-4">سجل العمليات</h3>
               <div className="bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.04)] border border-[#E5E5DF]/50 overflow-hidden">
@@ -245,8 +263,8 @@ export default function Dashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {walletTransactions.length > 0 ? walletTransactions.map((tx) => (
-                      <TableRow key={tx.id} className="hover:bg-gray-50/50">
+                    {walletTransactions.length > 0 ? walletTransactions.map((tx: any) => (
+                      <TableRow key={`tx-${tx.id}`} className="hover:bg-gray-50/50">
                         <TableCell className="text-xs text-gray-500">{new Date(tx.createdAt).toLocaleDateString("ar-SY")}</TableCell>
                         <TableCell className={`text-xs font-bold ${transactionTypeColors[tx.type as keyof typeof transactionTypeColors] || ""}`}>
                           {transactionTypeLabels[tx.type as keyof typeof transactionTypeLabels] || tx.type}
@@ -278,7 +296,7 @@ export default function Dashboard() {
               <h2 className="text-2xl font-bold text-[#1A1A2E] mb-6">محادثاتي</h2>
               <div className="bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.04)] border border-[#E5E5DF]/50 overflow-hidden divide-y divide-gray-100">
                 {conversations.length > 0 ? conversations.map((conv) => (
-                  <div key={conv.id} className="p-5 flex items-center gap-4 hover:bg-[#FAFBF7] transition-all cursor-pointer group">
+                  <div key={`conv-${conv.id}`} className="p-5 flex items-center gap-4 hover:bg-[#FAFBF7] transition-all cursor-pointer group">
                     <div className="relative">
                       <img src={conv.otherAvatar ?? `https://api.dicebear.com/7.x/initials/svg?seed=${conv.otherName}`} alt={conv.otherName} className="w-14 h-14 rounded-2xl object-cover shadow-sm group-hover:scale-105 transition-transform" />
                       {(conv as any).unreadCount > 0 && (

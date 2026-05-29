@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 export const trpc = createTRPCReact<AppRouter>();
 
 const queryClient = new QueryClient();
+
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
@@ -15,16 +16,27 @@ const trpcClient = trpc.createClient({
       transformer: superjson,
       async headers() {
         const { auth } = await import("@/lib/firebase");
-        const user = auth.currentUser;
-        if (user) {
-          const token = await user.getIdToken();
+        
+        // Wait a small bit if auth is still initializing
+        const getToken = () => new Promise<string | null>((resolve) => {
+          const unsubscribe = auth.onAuthStateChanged((user) => {
+            if (user) {
+              user.getIdToken().then(resolve);
+            } else {
+              resolve(null);
+            }
+            unsubscribe();
+          });
+        });
+
+        const token = await getToken();
+        if (token) {
           return {
             Authorization: `Bearer ${token}`,
           };
         }
         return {};
       },
-
     }),
   ],
 });
