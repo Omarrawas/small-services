@@ -54,43 +54,54 @@ export async function authenticateRequest(headers: Headers) {
     let email: string | undefined;
     let photoURL: string | undefined;
 
-    if (auth) {
-      const decodedToken = await auth.verifyIdToken(idToken);
-      uid = decodedToken.uid;
-      const fbUser = await auth.getUser(uid);
-      displayName = fbUser.displayName ?? undefined;
-      email = fbUser.email ?? undefined;
-      photoURL = fbUser.photoURL ?? undefined;
-    } else {
-      const result = await verifyTokenWithRestApi(idToken);
-      uid = result.uid;
-      displayName = result.displayName;
-      email = result.email;
-      photoURL = result.photoURL;
+    try {
+      if (auth) {
+        const decodedToken = await auth.verifyIdToken(idToken);
+        uid = decodedToken.uid;
+        const fbUser = await auth.getUser(uid);
+        displayName = fbUser.displayName ?? undefined;
+        email = fbUser.email ?? undefined;
+        photoURL = fbUser.photoURL ?? undefined;
+      } else {
+        const result = await verifyTokenWithRestApi(idToken);
+        uid = result.uid;
+        displayName = result.displayName;
+        email = result.email;
+        photoURL = result.photoURL;
+      }
+    } catch (fbErr: any) {
+      console.error("[Auth] Firebase verification failed:", fbErr.message);
+      throw Errors.forbidden(`فشل التحقق من الحساب في Firebase: ${fbErr.message}`);
     }
 
-    let user = await findUserByUnionId(uid);
-    if (!user) {
-      console.log("[Auth] User not found in DB, creating new user for UID:", uid);
-      const { upsertUser } = await import("../queries/users");
-      user = (await upsertUser({
-        unionId: uid,
-        name: displayName || "Anonymous",
-        email: email,
-        avatar: photoURL,
-        lastSignInAt: new Date(),
-      })) || undefined;
+    let user;
+    try {
+      user = await findUserByUnionId(uid);
+      if (!user) {
+        console.log("[Auth] User not found in DB, creating new user for UID:", uid);
+        const { upsertUser } = await import("../queries/users");
+        user = await upsertUser({
+          unionId: uid,
+          name: displayName || "Anonymous",
+          email: email,
+          avatar: photoURL,
+          lastSignInAt: new Date(),
+        });
+      }
+    } catch (dbErr: any) {
+      console.error("[Auth] Database error during auth:", dbErr.message);
+      throw Errors.internal(`فشل مزامنة بياناتك مع قاعدة البيانات: ${dbErr.message}`);
     }
     
     if (!user) {
-      console.error("[Auth] Failed to retrieve user after upsert.");
-      throw Errors.internal("Failed to synchronize user session.");
+      throw Errors.internal("فشل استرجاع بيانات المستخدم من قاعدة البيانات بعد المزامنة.");
     }
     
     return user;
 
-  } catch (error) {
-    console.error("[Auth] Token verification failed", error);
-    throw Errors.forbidden("Invalid authentication token.");
+  } catch (error: any) {
+    console.error("[Auth] Overall auth failure:", error);
+    if (error.code) throw error; // Re-throw specialized errors
+    throw Errors.forbidden(error.message || "فشل غير معروف في المصادقة.");
   }
 }
